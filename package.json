@@ -1,0 +1,12 @@
+{
+  "name": "py_marketing_advisor",
+  "version": "1.0.0",
+  "description": "A big bot who can send message in various social e message app using amazon affiliate and linkvertise.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
