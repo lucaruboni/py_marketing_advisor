@@ -2,3 +2,6 @@ python-telegram-bot==13.7
 twilio==6.50.1
 tweepy==3.10.0
 requests==2.25.1
+beautifulsoup4==4.9.3
+pyTelegramBotAPI==3.7.9
+linkvertise==1.1.5

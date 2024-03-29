@@ -2,7 +2,7 @@ import tweepy
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import quote
-from monetization.linkvertise import create_linkvertise_link
+from monetization.linkvertise_bot import create_linkvertise_link
 import random
 import time
 import telebot  # Import pyTelegramBotAPI as telebot
@@ -56,10 +56,6 @@ def get_headers():
   return {"User-Agent": random.choice(user_agents)}
 
 
-# All'inizio del file, assicurati di avere l'import corretto
-from monetization.linkvertise import create_linkvertise_link
-
-
 def post_to_twitter(offer_title, offer_link, offer_image_url=None):
   try:
     status = f"🔥 Offerta Imperdibile: {offer_title}! Scopri di più qui: {offer_link}"
@@ -73,10 +69,10 @@ def post_to_twitter(offer_title, offer_link, offer_image_url=None):
 
       # Carica l'immagine su Twitter e ottieni un media_id
       media = api.media_upload(filename)
-      media_ids = [media.media_id_string]
+      media_id = [media.media_id_string]
 
       # Posta il tweet con l'immagine
-      api.update_status(status=status, media_ids=media_ids)
+      api.update_status(status=status, media_id=media_id)
       os.remove(filename)  # Rimuovi il file immagine dopo l'uso
     else:
       # Posta un tweet senza immagine
@@ -85,33 +81,34 @@ def post_to_twitter(offer_title, offer_link, offer_image_url=None):
     print(f"Errore durante la pubblicazione su Twitter: {e}")
 
 
-def scrape_amazon_offers(base_url, chat_id, max_pages=5):
-  for page in range(1, max_pages + 1):
-    url = f"{base_url}&page={page}"
-    response = requests.get(url, headers=get_headers())
-    if response.status_code == 200:
-      soup = BeautifulSoup(response.content, 'html.parser')
-      offers = soup.select('.s-result-item')
+def scrape_amazon_offers(base_url, chat_id):
+  offers = []  # Inizializza offers come lista vuota all'inizio della funzione
+  response = requests.get(base_url, headers=get_headers())
+  if response.status_code == 200:
+    soup = BeautifulSoup(response.content, 'html.parser')
+    offers = soup.select('div .s-result-item')
     if not offers:
       bot.send_message(chat_id, "Nessuna offerta trovata.")
       return
+    if offers:
+      print(f"Offerte trovate: {len(offers)}")
     for offer in offers:
       title_element = offer.select_one("span.a-text-normal")
       if not title_element:
-        continue  # Salta offerte senza titolo
+        continue  # Skip offers without title
       title = escape_markdown_v2(title_element.text.strip())
 
       price_element = offer.select_one("span.a-offscreen")
       if not price_element:
-        continue  # Salta offerte senza prezzo
+        continue  # Skip offers without price
       price = escape_markdown_v2(price_element.text.strip())
 
       link_element = offer.select_one("a.a-link-normal")
       if not link_element or "href" not in link_element.attrs:
-        continue  # Salta offerte senza link
-      original_link = 'https://www.amazon.it' + link_element['href']
+        continue  # Skip offers without link
+      original_link = 'https://www.amazon.it' + str(link_element['href'])
 
-      # Usa create_linkvertise_link per generare il link di Linkvertise
+      # Use create_linkvertise_link to generate the Linkvertise link
       linkvertise_url = create_linkvertise_link(original_link)
 
       image_element = offer.select_one("img.s-image")
@@ -122,23 +119,26 @@ def scrape_amazon_offers(base_url, chat_id, max_pages=5):
           'Offerta Esclusiva'
       ]
       random_offer_type = random.choice(offer_type)
-      caption = f"🔥 *{random_offer_type}:* _{title}_ \n\n🚀 a solo {price}\\!\n\n🛒 [Acquista Ora]({linkvertise_url})"
-      twitter_status = f"🔥 Offerta Imperdibile: {title} a solo {price}! Scopri di più qui: {linkvertise_url}"
-
+      caption = f"🔥 *{random_offer_type}:* _{title}_ \n\n🚀 a solo {price}\\!\n\n🛒       [Acquista Ora]({linkvertise_url})"
+      # Dopo aver processato tutte le pagine, pubblica un unico tweet con un'offerta casuale
+      if post_to_twitter and offers:
+        random_offer = random.choice(offers)  # Seleziona un'offerta casuale
+        tweet_content = f"🔥 *{random_offer.random_offer_type}:* _{random_offer.title}_ \n\n🚀 a solo {random_offer.price}\\!\n\n🛒 [Acquista Ora]({random_offer.linkvertise_url})"
+        post_to_twitter(
+            tweet_content, None
+        )  # Assumi che post_to_twitter prenda il contenuto del tweet e opzionalmente un'immagine
+        print(f"\n\n Offerta elaborata: *{title}* \\!\n\nprezzo: {price}\\!"
+              )  # Stampa il nome dell'offerta
+      # Moved inside the loop to ensure caption is defined before usage
       try:
-
         bot.send_photo(chat_id,
                        photo=image_url,
                        caption=caption,
                        parse_mode='MarkdownV2')
-        # Postare l'offerta su Twitter
-        post_to_twitter(
-            twitter_status, linkvertise_url, image_url
-        )  # Assicurati che questa funzione sia definita correttamente
       except Exception as e:
-        print(f"Errore nell'invio della foto: {e}")
-  else:
-    print(f"Errore HTTP: {response.status_code}")
+        print(f"Error sending the photo: {e}")
+      # Move this print statement inside the loop
+      print(f"HTTP Error: {response.status_code}")
 
 
 # Funzione per inviare messaggi tramite il bot di Telegram
@@ -152,7 +152,7 @@ def handle_command(message):
   chat_id = message.chat.id
   bot.send_message(chat_id, "Test: bot attivo e risponde correttamente.")
   scrape_amazon_offers(
-      'https://www.amazon.it/s?i=computers&bbn=425916031&rh=n%3A425916031%2Cp_89%3AAmazon%7CApple%7CHP%7CLogitech%7CSAMSUNG&dc&page=11&ref=sr_pg_11',
+      'https://www.amazon.it/s?i=computers&bbn=425916031&rh=n%3A425916031%2Cp_89%3AAmazon%7CApple%7CHP%7CLogitech%7CSAMSUNG&dc&page=1&ref=sr_pg_1',
       chat_id)
 
 
