@@ -82,11 +82,25 @@ def stop_telegram_bot():
             "red"))
 
 
+def get_page_url():
+  choice = input(
+      colored(
+          "Vuoi scaricare la prima pagina o una pagina casuale?\n [prima/casuale]:\n ",
+          "light_magenta")).lower()
+  base_url = 'https://www.amazon.it/s?i=computers&rh=n%3A425916031&fs=true&ref=sr_pg_1'
+  if choice == 'casuale':
+    page_number = random.randint(
+        1, 40)  # Modifica con il numero massimo di pagine se necessario
+    return f"{base_url}&page={page_number}"
+  else:
+    return base_url + "&page=1"
+
+
 def twitter_action():
   # Esegue lo scraping delle offerte
   offers = scrape_amazon_offers(
       'https://www.amazon.it/s?i=computers&rh=n%3A425916031&fs=true&ref=sr_pg_1',
-      chat_id, 1
+      chat_id
   )  # Aggiusta con il tuo URL reale e la logica di paginazione se necessario
   # Seleziona un'offerta casuale dalla lista e posta su Twitter
   if offers:
@@ -105,24 +119,22 @@ def telegram_action():
         colored("Il bot Telegram è già in esecuzione. Invio delle offerte...",
                 "cyan"))
 
+  # Ottiene l'URL per lo scraping in base alla scelta dell'utente
+  url = get_page_url()
   # Esegue lo scraping delle offerte
   offers = scrape_amazon_offers(
-      'https://www.amazon.it/s?i=computers&rh=n%3A425916031&fs=true&ref=sr_pg_1',
-      chat_id, 1)  # Adatta con il tuo URL e la logica di paginazione
+      url, chat_id
+  )  # Aggiusta con il tuo URL e la logica di paginazione se necessario
+
   if offers:
     print(colored(f"Invio di {len(offers)} offerte su Telegram...", "green"))
 
-    # Crea la barra di tqdm
-    pbar = tqdm(total=len(offers),
-                desc=colored("Invio offerte", "magenta"),
-                bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt}')
-
+    # Invia le offerte su Telegram tramite una funzione esterna che gestisce il batch di invio e la logica di retry
     send_offer_telegram(chat_id, offers)
-    sleep(1)  # Intervallo casuale tra 1 e 3 secondi
-    pbar.update(1)  # Aggiorna la barra di tqdm
 
-    pbar.close()  # Chiude la barra di tqdm quando il ciclo è finito
+    # Dopo il completamento dell'invio, chiudi la barra di tqdm
 
+    print(colored("Invio offerte completato.", "green"))
   else:
     print(colored("Nessuna offerta trovata.", "red"))
 
@@ -157,7 +169,7 @@ def main():
 if __name__ == "__main__":
   signal.signal(signal.SIGINT, signal_handler)
   print(
-      colored("\nMultichannel bot alpha 0.1 developed by TopoDiFogna\n",
+      colored("\nMultichannel bot alpha 0.5 developed by TopoDiFogna\n",
               "magenta"))
   print(colored(ascii_art, 'green'))
   try:

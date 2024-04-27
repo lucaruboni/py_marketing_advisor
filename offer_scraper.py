@@ -1,7 +1,9 @@
 import requests
 from termcolor import colored
+import logging
 import random
 import time
+import re
 from bs4 import BeautifulSoup
 from monetization.linkvertise_bot import create_linkvertise_link
 
@@ -73,8 +75,12 @@ def random_sleep(minimum=1, maximum=3):
   time.sleep(random.uniform(minimum, maximum))
 
 
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+
+
 def make_request_with_retries(url, session, max_attempts=5):
-  base_sleep_time = 5  # inizia con 5 secondi
+  base_sleep_time = 5  # Inizia con 5 secondi
   for attempt in range(max_attempts):
     response = session.get(url)
     if response.status_code == 200:
@@ -82,48 +88,60 @@ def make_request_with_retries(url, session, max_attempts=5):
     elif response.status_code == 503:
       # Gestisce specificamente l'errore 503
       sleep_time = base_sleep_time * (2**attempt)
-      print(
+      logging.error(
           colored(
-              f"503 Service Unavailable ricevuto, tentativo {attempt + 1}. Attendo {sleep_time} secondi prima di riprovare.",
-              'red'))
+              f"503 Service Unavailable ricevuto per {url}, tentativo {attempt + 1}. Attendo {sleep_time} secondi prima di riprovare.",
+              "red"))
       time.sleep(sleep_time)
     else:
       # Gestisce tutti gli altri codici di stato di errore
       sleep_time = base_sleep_time * (2**attempt)
-      print(
+      logging.error(
           colored(
-              f"Errore {response.status_code} ricevuto, tentativo {attempt + 1}. Attendo {sleep_time} secondi prima di riprovare.",
-              'red'))
+              f"Errore {response.status_code} ricevuto per {url}, tentativo {attempt + 1}. Dettagli: {response.text}. Attendo {sleep_time} secondi prima di riprovare.",
+              "red"))
       time.sleep(sleep_time)
 
-  print(colored("Massimi tentativi raggiunti. Richiesta fallita.", 'red'))
+  logging.error(
+      colored("Massimi tentativi raggiunti. Richiesta fallita.", "red"))
   return None
 
 
+def get_page_number_from_url(url):
+  # Usa un'espressione regolare per trovare il numero di pagina nell'URL
+  match = re.search(r"page=(\d+)", url)
+  if match:
+    return int(match.group(1))
+  else:
+    return 1  # Ritorna 1 se non trova il parametro di pagina, assumendo che sia la prima pagina
+
+
 # In the offer_scraper.py file, modify the scrape_amazon_offers function
-def scrape_amazon_offers(base_url, chat_id, max_pages=10):
+def scrape_amazon_offers(url, chat_id):
+  page = get_page_number_from_url(url)  # Ottieni il numero di pagina dall'URL
   offers = []
   session = requests.Session()  # Crea una sessione
   session.headers.update(get_headers())  # Imposta gli header della sessione
 
-  def random_sleep(minimum=1, maximum=5):
+  def random_sleep(minimum=2, maximum=6):
     time.sleep(random.uniform(minimum, maximum))
 
-  session = requests.Session()
-  session.headers.update(get_headers())
+  random_sleep(minimum=2, maximum=6)
 
   # Esempio di utilizzo della funzione make_request_with_retries
   homepage_url = "https://www.amazon.it"
   response = make_request_with_retries(homepage_url, session)
   if response:
-    print("Accesso alla homepage riuscito")
+    print(colored("Accesso alla homepage riuscito", "green"))
+    random_sleep(2, 6)
     # Prosegui con l'elaborazione della risposta
   else:
-    print("Impossibile accedere alla homepage dopo vari tentativi.")
+    print(
+        colored("Impossibile accedere alla homepage dopo vari tentativi.",
+                "red"))
 
-  page = random.randint(1, 40)
-  url = f"{base_url}&page={page}"
   print(f"Tentativo di accesso a: {url} ")  # Stampa l'URL
+  random_sleep(2, 3)
   try:
     # Usa make_request_with_retries anche per questa richiesta
     response = make_request_with_retries(url, session)
@@ -137,10 +155,20 @@ def scrape_amazon_offers(base_url, chat_id, max_pages=10):
     soup = BeautifulSoup(response.content, 'html.parser')
     offer_elements = soup.select('div .s-result-item')
     if not offer_elements:
-      print(chat_id, "Nessuna offerta trovata.")
+      print(chat_id, colored("Nessuna offerta trovata.", "red"))
       return offers
 
-    print(f"Offerte trovate: {len(offer_elements)}")
+    def print_colored_message(offer_elements):
+      # Definizione dei colori disponibili
+      colors = ['red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white']
+      # Selezione casuale del colore per il numero delle offerte
+      number_color = random.choice(colors)
+
+      # Stampa del messaggio con il testo colorato
+      print(
+          colored('Offerte trovate: ', 'blue') +
+          colored(str(len(offer_elements)), number_color))
+
     for offer_element in offer_elements:
       random_sleep(1, 5)
       title_element = offer_element.select_one("span.a-text-normal")
